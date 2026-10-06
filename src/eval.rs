@@ -25,6 +25,10 @@ fn eval_binary_op(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Obje
             "-" => Ok(Object::Integer(left_val - right_val)),
             "*" => Ok(Object::Integer(left_val * right_val)),
             "/" => Ok(Object::Integer(left_val / right_val)),
+            "=" => Ok(Object::Bool(left_val == right_val)),
+            "!=" => Ok(Object::Bool(left_val != right_val)),
+            "<" => Ok(Object::Bool(left_val < right_val)),
+            ">" => Ok(Object::Bool(left_val > right_val)),
             _ => Err(format!("Invalid binary operator: {}", s)),
         }
         _ => Err(format!("Operator must be symbol. op={:?}", op)),
@@ -35,7 +39,7 @@ fn eval_list(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, S
     let head = &list[0];
     match head {
         Object::Symbol(s) => match s.as_str() {
-            "+" | "-" | "*" | "/" => {
+            "+" | "-" | "*" | "/" | "=" | "!=" | "<" | ">" => {
                 return eval_binary_op(&list, env);
             }
             "define" => {
@@ -79,7 +83,7 @@ fn eval_obj(obj: &Object, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> 
         Object::List(list) => eval_list(list, env),
         Object::Void => Ok(Object::Void),
         // Object::Lambda(_params, _body) => Ok(Object::Void),
-        // Object::Bool(_) => Ok(obj.clone()),
+        Object::Bool(_) => Ok(obj.clone()),
         Object::Integer(n) => Ok(Object::Integer(*n)),
         Object::Symbol(s) => eval_symbol(s, env),
         _ => Err(format!("eval_obj: unsupported object. obj={:?}", obj)),
@@ -133,6 +137,37 @@ mod tests {
         let mut env = Rc::new(RefCell::new(Env::new()));
         let result = eval("(/ 5 2)", &mut env).unwrap();
         assert_eq!(result, Object::Integer(2));
+    }
+
+    #[test]
+    fn test_binary_op_equal() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        assert_eq!(eval("(= 5 2)", &mut env).unwrap(), Object::Bool(false));
+        assert_eq!(eval("(= 2 2)", &mut env).unwrap(), Object::Bool(true));
+    }
+
+    #[test]
+    fn test_binary_op_not_equal() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        assert_eq!(eval("(!= 5 2)", &mut env).unwrap(), Object::Bool(true));
+        assert_eq!(eval("(!= 5 5)", &mut env).unwrap(), Object::Bool(false));
+    }
+
+    #[test]
+    fn test_binary_op_less() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        assert_eq!(eval("(< 2 3)", &mut env).unwrap(), Object::Bool(true));
+        assert_eq!(eval("(< 3 3)", &mut env).unwrap(), Object::Bool(false));
+        assert_eq!(eval("(< 4 3)", &mut env).unwrap(), Object::Bool(false));
+    }
+
+    #[test]
+    fn test_binary_op_greater() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        let result = eval("(/ 5 2)", &mut env).unwrap();
+        assert_eq!(eval("(> 2 3)", &mut env).unwrap(), Object::Bool(false));
+        assert_eq!(eval("(> 3 3)", &mut env).unwrap(), Object::Bool(false));
+        assert_eq!(eval("(> 4 3)", &mut env).unwrap(), Object::Bool(true));
     }
 
 
