@@ -45,6 +45,9 @@ fn eval_list(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, S
             "define" => {
                 return eval_define(&list, env);
             }
+            "if" => {
+                return eval_if(&list, env);
+            }
             _ => {
                 return Err(format!("eval_list: Unsupported operator. op={}", head))
             }
@@ -61,6 +64,25 @@ fn eval_list(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, S
             return Ok(Object::List(new_list))
         }
     }
+}
+
+fn eval_if(list: &[Object], env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
+    if list.len() != 4 {
+        return Err(format!("Invalid number of arguments for if"))
+    }
+
+    let cond_obj = eval_obj(&list[1], env)?;
+
+    let cond = match  cond_obj {
+        Object::Bool(b) => b.clone(),
+        _ => return Err(format!("Invalid if")),
+    };
+
+    if cond == true {
+        return eval_obj(&list[2], env);
+    } else {
+        return eval_obj(&list[3], env);
+    };
 }
 
 fn eval_define(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
@@ -183,5 +205,22 @@ mod tests {
         let result = eval(program, &mut env).unwrap();
         assert_eq!(result, Object::List(vec![Object::Integer(8)]));
     }
+
+    #[test]
+    fn test_if() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        let program = "(
+        (if (< 1 2) 3 4)
+        (if (> 1 2) 3 4)
+    )";
+
+        let result = eval(program, &mut env).unwrap();
+        assert_eq!(result, 
+            Object::List(vec![
+                Object::Integer(3),
+                Object::Integer(4),
+                ]));
+    }
+
 
 }
