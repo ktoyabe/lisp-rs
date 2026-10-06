@@ -22,6 +22,9 @@ fn eval_binary_op(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Obje
     match op {
         Object::Symbol(s) => match s.as_str() {
             "+" => Ok(Object::Integer(left_val + right_val)),
+            "-" => Ok(Object::Integer(left_val - right_val)),
+            "*" => Ok(Object::Integer(left_val * right_val)),
+            "/" => Ok(Object::Integer(left_val / right_val)),
             _ => Err(format!("Invalid binary operator: {}", s)),
         }
         _ => Err(format!("Operator must be symbol. op={:?}", op)),
@@ -32,7 +35,7 @@ fn eval_list(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, S
     let head = &list[0];
     match head {
         Object::Symbol(s) => match s.as_str() {
-            "+" => {
+            "+" | "-" | "*" | "/" => {
                 return eval_binary_op(&list, env);
             }
             "define" => {
@@ -105,11 +108,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_simple_add() {
+    fn test_binary_op_add() {
         let mut env = Rc::new(RefCell::new(Env::new()));
         let result = eval("(+ 1 2)", &mut env).unwrap();
         assert_eq!(result, Object::Integer(3));
     }
+
+    #[test]
+    fn test_binary_op_sub() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        let result = eval("(- 1 2)", &mut env).unwrap();
+        assert_eq!(result, Object::Integer(-1));
+    }
+
+    #[test]
+    fn test_binary_op_mul() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        let result = eval("(* 2 3)", &mut env).unwrap();
+        assert_eq!(result, Object::Integer(6));
+    }
+
+    #[test]
+    fn test_binary_op_div() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        let result = eval("(/ 5 2)", &mut env).unwrap();
+        assert_eq!(result, Object::Integer(2));
+    }
+
 
     #[test]
     fn test_define() {
