@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{env::Env, object::Object, parser::parse};
+use crate::{env::Env, object::Object::{self, Lambda}, parser::parse};
 
 fn eval_binary_op(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
     if list.len() != 3 {
@@ -48,8 +48,11 @@ fn eval_list(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, S
             "if" => {
                 return eval_if(&list, env);
             }
+            "lambda" => {
+                return eval_lambda(&list, env);
+            }
             _ => {
-                return Err(format!("eval_list: Unsupported operator. op={}", head))
+                return eval_function_call(&s, &list, env);
             }
         }
         _ => {
@@ -64,6 +67,52 @@ fn eval_list(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, S
             return Ok(Object::List(new_list))
         }
     }
+}
+
+fn eval_function_call(symbol: &str, list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
+    let lambda = env.borrow_mut().get(symbol);
+    if lambda.is_none() {
+        return Err(format!("Undefined symbol. {}", symbol))
+    }
+
+    let func = lambda.unwrap();
+    match func {
+        Object::Lambda(params, body) => {
+            let mut new_env = Rc::new(RefCell::new(Env::extend(env.clone())));
+            for (i, param) in params.iter().enumerate() {
+                let val = eval_obj(&list[i + 1], env)?;
+                new_env.borrow_mut().set(param, val);
+            }
+            return eval_obj(&Object::List(body),&mut new_env);
+        },
+        _ => return Err(format!("Not a lambda: {}", symbol)),
+    }
+} 
+
+fn eval_lambda(list: &[Object], env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
+    if list.len() != 3 {
+        return Err(format!("Invalid number of arguments for lambda"))
+    }
+
+    let params = match &list[1] {
+        Object::List(list) => {
+            let mut params = Vec::new();
+            for param in list {
+                match param {
+                    Object::Symbol(s) => params.push(s.clone()),
+                    _ => return Err(format!("Invalid lambda parameter. parameter type must be Object::Symbol.")),
+                }
+            }
+            params
+        },
+        _ => return Err(format!("Invalid lambda. list[1] type must be Object::List"))
+    };
+
+    let body = match &list[2] {
+        Object::List(list) => list.clone(),
+        _ => return Err(format!("Invalid lambda body. body type must be Object::List"))
+    };
+    Ok(Object::Lambda(params, body))
 }
 
 fn eval_if(list: &[Object], env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
@@ -104,7 +153,7 @@ fn eval_obj(obj: &Object, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> 
     match obj {
         Object::List(list) => eval_list(list, env),
         Object::Void => Ok(Object::Void),
-        // Object::Lambda(_params, _body) => Ok(Object::Void),
+        Object::Lambda(_params, _body) => Ok(Object::Void),
         Object::Bool(_) => Ok(obj.clone()),
         Object::Integer(n) => Ok(Object::Integer(*n)),
         Object::Symbol(s) => eval_symbol(s, env),
@@ -128,6 +177,7 @@ pub fn eval(program: &str, env: &mut Rc<RefCell<Env>>) -> Result<Object, String>
     }
     eval_obj(&parsed_list.unwrap(), env)
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -222,5 +272,21 @@ mod tests {
                 ]));
     }
 
+    #[test]
+    fn test_lambda() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        let program = "(
+        (define a 3)
+        (define b 4)
+        (define add (lambda (x y) (+ x y)))
+        (add a b)
+    )";
+
+        let result = eval(program, &mut env).unwrap();
+        assert_eq!(result, 
+            Object::List(vec![
+                Object::Integer(7),
+                ]));
+    }
 
 }

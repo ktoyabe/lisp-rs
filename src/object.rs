@@ -6,7 +6,7 @@ pub enum Object {
     Integer(i64),
     Bool(bool),
     Symbol(String),
-    Lambda(Vec<String>, Vec<String>),
+    Lambda(Vec<String>, Vec<Object>),
     List(Vec<Object>),
 }
 
