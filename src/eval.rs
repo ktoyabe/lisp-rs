@@ -35,14 +35,40 @@ fn eval_list(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, S
             "+" => {
                 return eval_binary_op(&list, env);
             }
+            "define" => {
+                return eval_define(&list, env);
+            }
             _ => {
                 return Err(format!("eval_list: Unsupported operator. op={}", head))
             }
         }
         _ => {
-            return Err(format!("eval_list: Unsupported. {:?}", list));
+            let mut new_list = Vec::new();
+            for obj in list {
+                let result = eval_obj(obj, env)?;
+                match result {
+                    Object::Void => {},
+                    _ => new_list.push(result),
+                }
+            }
+            return Ok(Object::List(new_list))
         }
     }
+}
+
+fn eval_define(list: &Vec<Object>, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
+    if list.len() != 3 {
+        return Err(format!("Invalid number of arguments for define"))
+    }
+
+    let symbol = match &list[1] {
+        Object::Symbol(s) => s.clone(),
+        _ => return Err(format!("Invalid define")),
+    };
+
+    let val = eval_obj(&list[2], env)?;
+    env.borrow_mut().set(&symbol, val);
+    Ok(Object::Void)
 }
 
 fn eval_obj(obj: &Object, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
@@ -52,9 +78,18 @@ fn eval_obj(obj: &Object, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> 
         // Object::Lambda(_params, _body) => Ok(Object::Void),
         // Object::Bool(_) => Ok(obj.clone()),
         Object::Integer(n) => Ok(Object::Integer(*n)),
-        // Object::Symbol(s) => eval_symbol(s, env),
+        Object::Symbol(s) => eval_symbol(s, env),
         _ => Err(format!("eval_obj: unsupported object. obj={:?}", obj)),
     }
+}
+
+fn eval_symbol(symbol: &str, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
+    let val = env.borrow_mut().get(symbol);
+    if val.is_none() {
+        return Err(format!("Undefined symbol: {}", symbol));
+    }
+
+    Ok(val.unwrap().clone())
 }
 
 pub fn eval(program: &str, env: &mut Rc<RefCell<Env>>) -> Result<Object, String> {
@@ -75,4 +110,18 @@ mod tests {
         let result = eval("(+ 1 2)", &mut env).unwrap();
         assert_eq!(result, Object::Integer(3));
     }
+
+    #[test]
+    fn test_define() {
+        let mut env = Rc::new(RefCell::new(Env::new()));
+        let program = "(
+            (define a 3)
+            (define b 5)
+            (+ a b)
+        )";
+
+        let result = eval(program, &mut env).unwrap();
+        assert_eq!(result, Object::List(vec![Object::Integer(8)]));
+    }
+
 }
